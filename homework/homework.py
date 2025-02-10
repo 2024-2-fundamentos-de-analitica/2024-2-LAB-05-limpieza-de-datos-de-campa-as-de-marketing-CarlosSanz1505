@@ -49,6 +49,60 @@ def clean_campaign_data():
 
 
     """
+    import os
+    import shutil
+    import glob
+    import pandas as pd
+    import calendar
+
+    # Restablecer estado del directorio files antes de ejecutar
+    if os.path.exists('./files/output'):
+        shutil.rmtree('./files/output')
+    
+    # Obtener datos
+    dataframes = []
+    for pathname in glob.glob('./files/input/*.csv.zip'):
+        dataframes.append(pd.read_csv(pathname))
+    data = pd.concat(dataframes, ignore_index=True)
+    print(data.columns)
+
+    # Función auxiliar (remplazo con multiples casos)
+    def replace_all(str, dic):
+        for old, new in dic.items():
+            str = str.replace(old, new)
+        return str
+    
+    # Limpieza para client.csv
+    job_rep = {'.': '', '-': '_'}
+    data['job'] = data['job'].apply(lambda j: replace_all(j, job_rep))
+    data['education'] = data['education'].apply(lambda e: pd.NA if e == 'unknown' else e.replace('.', '_'))
+    data['credit_default'] = data['credit_default'].apply(lambda c: 1 if c == 'yes' else 0)
+    data['mortgage'] = data['mortgage'].apply(lambda m: 1 if m == 'yes' else 0)
+
+    # Limpieza para campaign.csv
+    month_num = {month.lower(): index for index, month in enumerate(calendar.month_abbr) if month}
+    data['previous_outcome'] = data['previous_outcome'].apply(lambda p: 1 if p == 'success' else 0)
+    data['campaign_outcome'] = data['campaign_outcome'].apply(lambda c: 1 if c == 'yes' else 0)
+    data['last_contact_date'] = '2022-' + data['month'].apply(lambda m: month_num[m]).astype(str).str.zfill(2) + '-' + data['day'].astype(str).str.zfill(2)
+
+    # Generar archivos de salida
+    os.makedirs('./files/output')
+    output = {
+        'client': [
+            'client_id', 'age', 'job', 'marital', 'education', 
+            'credit_default', 'mortgage'
+        ],
+        'campaign': [
+            'client_id', 'number_contacts', 'contact_duration', 
+            'previous_campaign_contacts', 'previous_outcome', 
+            'campaign_outcome', 'last_contact_date'
+        ],
+        'economics': [
+            'client_id', 'cons_price_idx', 'euribor_three_months'
+        ]
+    }
+    for subset in output:
+        data[output[subset]].to_csv(f'./files/output/{subset}.csv', index=False)
 
     return
 
